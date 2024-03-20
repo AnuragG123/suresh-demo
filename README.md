@@ -1,74 +1,74 @@
-Integrating Amazon SageMaker Notebook Instance with GitLab Repository
 
-Introduction:
+import boto3
+import json
+from datetime import datetime, timedelta
+from botocore.exceptions import ClientError
 
-Amazon SageMaker provides a powerful environment for building, training, and deploying machine learning models. Integrating a SageMaker Notebook Instance with GitLab allows you to version control your machine learning projects, collaborate with team members, and maintain a record of changes. This step-by-step documentation will guide you through the process of integrating a SageMaker Notebook Instance with an existing GitLab repository.
+def lambda_handler(event, context):
+    # Extract bucket name and prefix from the event
+    bucket_name = event['bucket']
+    prefix = event['prefix']
+    older_than_years = event.get('older_than_years', 8)
 
-Prerequisites:
+    deleted_objects = delete_old_folders(bucket_name, prefix, older_than_years)
+    
+    if deleted_objects:
+        send_email_notification(deleted_objects)
 
-1.	AWS Account: Ensure you have an active AWS account.
+def delete_old_folders(bucket_name, prefix, older_than_years):
+    s3 = boto3.client('s3')
+    deleted_objects = []
 
-2.	GitLab Account: Make sure you have a GitLab account with the repository you want to integrate.
+    # Calculate cutoff date
+    cutoff_date = datetime.now() - timedelta(days=older_than_years*365)
 
-3.	SageMaker Notebook Instance: Create a SageMaker Notebook Instance if you haven't already.
+    # List objects in the bucket with the given prefix
+    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
 
-Steps:
+    # Iterate through objects and delete those older than cutoff date
+    if 'Contents' in response:
+        for obj in response['Contents']:
+            key = obj['Key']
+            last_modified = obj['LastModified'].replace(tzinfo=None)
 
-1. Access SageMaker Console:
+            if last_modified < cutoff_date:
+                print(f"Deleting object: {key}")
+                s3.delete_object(Bucket=bucket_name, Key=key)
+                deleted_objects.append(key)
+    
+    return deleted_objects
 
-•	Go to the Amazon SageMaker Console.
+def send_email_notification(deleted_objects):
+    SENDER = "your_ses_verified_email@example.com"
+    RECIPIENTS = ["anurag@gmail.com", "gouthami@gmail.com"]
+    SUBJECT = "Data Deletion Notification"
+    CHARSET = "UTF-8"
 
-•	Select "Notebook instances" from the left navigation pane.
+    # Create email body
+    email_body = f"The following objects have been deleted:\n\n"
+    for obj in deleted_objects:
+        email_body += f"- {obj}\n"
 
-•	Choose the notebook instance you want to use.
+    # Create the email message
+    email_message = {
+        'Subject': {'Data': SUBJECT, 'Charset': CHARSET},
+        'Body': {'Text': {'Data': email_body, 'Charset': CHARSET}}
+    }
 
-•	Click on "Open Jupyter" to access the Jupyter Notebook interface.
+    # Create a new SES client
+    ses_client = boto3.client('ses')
 
-2. Open Terminal in Jupyter Notebook:
-
-•	Within the Jupyter Notebook interface, open a new terminal.
-
-3. Clone GitLab Repository:
-
-•	In the Jupyter terminal, use the following command to clone the GitLab repository. Replace <repository_url> with your GitLab repository URL.
-
-
-
-git clone <repository_url>
-
-4. Configure Git (Optional):
-
-•	If you haven't set your Git username and email, you can use the terminal to set them:
-
-git config --global user.name "Your Name"
-
-git config --global user.email your.email@example.com
-
-
-
-5. Push Changes (Optional):
-
-•	Make changes to your Jupyter notebooks or files as needed.
-
-•	Commit and push the changes back to the GitLab repository.
-
-
-
-git add .
-
-git commit -m "Commit message"
-
-git push origin master  # Replace 'master' with your branch name
-
-
-
-6. Access GitLab Repository:
-
-•	Verify that the changes have been pushed to your GitLab repository by checking the repository on the GitLab website.
-
-Conclusion:
-
-Integrating your SageMaker Notebook Instance with GitLab provides a seamless workflow for collaborative machine learning development. You can now version control your notebooks, share code with team members, and leverage GitLab's features for project management and collaboration.
-
-
+    # Try to send the email
+    try:
+        # Provide the contents of the email
+        response = ses_client.send_email(
+            Destination={'ToAddresses': RECIPIENTS},
+            Message=email_message,
+            Source=SENDER
+        )
+    # Display an error if something goes wrong
+    except ClientError as e:
+        print(f"Error sending email: {e.response['Error']['Message']}")
+    else:
+        print("Email sent successfully")
 
