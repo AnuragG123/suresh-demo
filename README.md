@@ -1,4 +1,6 @@
+ To send emails whenever data has been deleted in your AWS Lambda function, you can integrate the AWS Simple Email Service (SES) into your Python code. Here's how you can modify your code to achieve this:
 
+```python
 import boto3
 import json
 from datetime import datetime, timedelta
@@ -71,4 +73,8 @@ def send_email_notification(deleted_objects):
         print(f"Error sending email: {e.response['Error']['Message']}")
     else:
         print("Email sent successfully")
+```
 
+Make sure to replace `"your_ses_verified_email@example.com"` with your SES verified email address. Also, ensure that your Lambda function has the necessary permissions to send emails via SES.
+
+This code will send an email notification to the specified recipients whenever data is deleted from the S3 bucket with details of the deleted objects.
